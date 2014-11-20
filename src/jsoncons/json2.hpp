@@ -1544,7 +1544,7 @@ bool is_non_ascii_character(uint32_t c)
 }
 
 template<typename Char>
-void escape_string(const std::basic_string<Char>& s,
+void escape_string_orig(const std::basic_string<Char>& s,
                    const basic_output_format<Char>& format,
                    std::basic_ostream<Char>& os)
 {
@@ -1640,6 +1640,29 @@ void escape_string(const std::basic_string<Char>& s,
         }
     }
 }
+
+template<typename Char>
+void escape_string(const std::basic_string<Char>& s,
+                   const basic_output_format<Char>& format,
+                   std::basic_ostream<Char>& os)
+{
+    escape_string_orig<char>( s, format, os );
+}
+
+template<>
+void escape_string< char >(const std::basic_string<char>& s,
+                   const basic_output_format<char>& format,
+                   std::basic_ostream<char>& os)
+{
+    const static std::basic_string<char> safe = " !#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_'abcdefghijklmnopqrstuvwxyz{|}~";
+    
+    if( s.find_first_not_of( safe ) == std::basic_string<char>::npos ) {
+        os << s;
+    } else {
+        escape_string_orig<char>( s, format, os );
+    }
+}
+
 
 template<typename Char, typename Storage>
 class basic_json<Char, Storage>::object : public basic_json<Char, Storage>
