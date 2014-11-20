@@ -1650,7 +1650,7 @@ void escape_string(const std::basic_string<Char>& s,
 }
 
 template<>
-void escape_string< char >(const std::basic_string<char>& s,
+inline void escape_string< char >(const std::basic_string<char>& s,
                    const basic_output_format<char>& format,
                    std::basic_ostream<char>& os)
 {
