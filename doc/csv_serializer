@@ -294,7 +294,7 @@ img {
 <pre><code>jsoncons_ext::csv::csv_serializer
 </code></pre>
 
-<p>The <code>csv_serializer</code> class is an instantiation of the <code>basic_csv_serializer</code> class template that uses char as the character type.  It implements <a href="json_output_handler">json<em>output</em>handler</a> and supports formatting a JSON value as a <a href="http://tools.ietf.org/html/rfc4180">CSV file</a>.</p>
+<p>The <code>csv_serializer</code> class is an instantiation of the <code>basic_csv_serializer</code> class template that uses <code>char</code> as the character type.  It implements <a href="json_output_handler">json<em>output</em>handler</a> and supports formatting a JSON value as a <a href="http://tools.ietf.org/html/rfc4180">CSV file</a>.</p>
 <h3>Header</h3>
 <pre><code>#include &quot;jsoncons_ext/csv/csv_serializer.hpp&quot;
 </code></pre>
@@ -304,63 +304,20 @@ img {
 </code></pre>
 
 <p>Constructs a <code>csv_serializer</code> that is associated with an output stream
-<code>os</code>. Uses default [csv formatting parameters](csv formatting parameters).</p>
+<code>os</code>. Uses default [csv formatting parameters](csv formatting parameters).
+You must ensure that the output stream exists as long as does <code>csv_serializer</code>, as <code>json_serializer</code> holds a pointer to but does not own this object.</p>
 <pre><code>csv_serializer(std::ostream&amp; os,
                const json&amp; params)
 </code></pre>
 
 <p>Constructs a <code>csv_serializer</code> that is associated with an output stream
-<code>os</code> and [csv formatting parameters](csv formatting parameters).</p>
+<code>os</code> and [csv formatting parameters](csv formatting parameters).
+You must ensure that the output stream exists as long as does <code>csv_serializer</code>, as <code>json_serializer</code> holds a pointer to but does not own this object.</p>
 <h3>Member functions</h3>
 <h3>Destructor</h3>
 <pre><code>virtual ~json_serializer()
 </code></pre>
 
-<h3>Event handler methods</h3>
-<pre><code>virtual void begin_object()
-</code></pre>
-
-<p>Receive notification of the start of a JSON object</p>
-<pre><code>virtual void end_object()
-</code></pre>
-
-<p>Receive notification of the end of a JSON object</p>
-<pre><code>virtual void begin_array()
-</code></pre>
-
-<p>Receive notification of the start of a JSON array</p>
-<pre><code>virtual void end_array()
-</code></pre>
-
-<p>Receive notification of the end of a JSON object</p>
-<pre><code>virtual void name(const std::string&amp; name)
-</code></pre>
-
-<p>Receive notification of the <code>name</code> of a name value pair</p>
-<pre><code>virtual void value(const std::string&amp; val)
-</code></pre>
-
-<p>Receive notification of a <code>string</code> value</p>
-<pre><code>virtual void value(double val)
-</code></pre>
-
-<p>Receive notification of a floating point number</p>
-<pre><code>virtual void value(long long val)
-</code></pre>
-
-<p>Receive notification of a signed integer</p>
-<pre><code>virtual void value(unsigned long long val)
-</code></pre>
-
-<p>Receive notification of a non-negative integer</p>
-<pre><code>virtual void value(bool val)
-</code></pre>
-
-<p>Receive notification of a boolean value</p>
-<pre><code>virtual void null_value()
-</code></pre>
-
-<p>Receive notification of <code>null</code></p>
 <h3>Examples</h3>
 <h3>Serializing an array of json values to a comma delimted file</h3>
 <h4>JSON input file</h4>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>error_handler</title>
+<title>json any</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <style type="text/css">
 /* GitHub stylesheet for MarkdownPad (http://markdownpad.com) */
@@ -291,45 +291,61 @@ img {
 </style>
 </head>
 <body>
-<pre><code>jsoncons::error_handler
-
-typedef basic_error_handler&lt;char&gt; error_handler
+<pre><code>jsoncons::json::any
 </code></pre>
 
-<p>When parsing JSON text with <a href="json_reader">json_reader</a>, if you need to implement
-cutomized error handling, you must implement this pure virtual class
-and pass it in the constructor of <a href="json_reader">json_reader</a>. The <code>read</code> method 
-will then report all warnings and errors through this interface.</p>
-<h3>Header</h3>
-<pre><code>#include &quot;jsoncons/error_handler.hpp&quot;
+<p><code>any</code> can contain any value that supports copy construction and assignment.</p>
+<h3>Constructors</h3>
+<pre><code>any()
+
+any(const any&amp; val)
+
+any(any&amp;&amp; val)
+
+template&lt;typename T&gt;
+explicit any(T val, typename std::enable_if&lt;!std::is_same&lt;any, typename std::decay&lt;T&gt;::type&gt;::value,int&gt;::type* = 0)
 </code></pre>
 
 <h3>Destructor</h3>
-<pre><code>virtual ~error_handler()
+<pre><code>~any()
 </code></pre>
 
-<h3>Member functions</h3>
-<pre><code>virtual void warning(const std::string&amp; error_code,
-                     const std::string&amp; message,
-                     const parsing_context&amp; context) throw (json_parse_exception) = 0
+<h3>Assignment operator</h3>
+<pre><code>any&amp; operator=(any rhs)
 </code></pre>
 
-<p>Receive notification of a warning. An [error_code](JSON parser error codes) indicates the type of error. Contextual information including
-line and column information is provided in the <a href="parsing_context">context</a> parameter.</p>
-<pre><code>virtual void error(const std::string&amp; error_code,
-                   const std::string&amp; message,
-                   const parsing_context&amp; context) throw (json_parse_exception) = 0
+<p>Supports copy and move assignment</p>
+<h3>Accessors</h3>
+<pre><code>template &lt;typename T&gt;
+const T&amp; cast() const
+
+template &lt;typename T&gt;
+T&amp; cast() 
 </code></pre>
 
-<p>Receive notification of a content error, possibly recoverable. An [error_code](JSON parser error codes) indicates the type of error. Contextual information including
-line and column information is provided in the <a href="parsing_context">context</a> parameter. </p>
-<pre><code>virtual void fatal_error(const std::string&amp; error_code,
-                         const std::string&amp; message,
-                         const parsing_context&amp; context) throw (json_parse_exception) = 0
+<h3>Example</h3>
+<p>A <code>json::any</code> object can contain a value of any type as long as 
+that type supports copy construction and assignment. This allows you, for example, to insert a boost matrix into a <code>json</code> object, 
+and to retrieve it back cast to the appropriate type. </p>
+<pre><code>#include &quot;jsoncons/json.hpp&quot;
+#include &lt;boost/numeric/ublas/matrix.hpp&gt;
+
+using jsoncons::json;
+using boost::numeric::ublas::matrix;
+
+json obj;
+
+matrix&lt;double&gt; A(2,2);
+A(0,0) = 1;
+A(0,1) = 2;
+A(1,0) = 3;
+A(1,1) = 4;
+
+obj.set(&quot;mydata&quot;,json::any(A));
+
+matrix&lt;double&gt;&amp; B = obj[&quot;mydata&quot;].any_cast&lt;matrix&lt;double&gt;&gt;();
 </code></pre>
 
-<p>Receive notification of a well-formedness error, not recoverable. An [error_code](JSON parser error codes) indicates the type of error. Contextual information including
-line and column information is provided in the <a href="parsing_context">context</a> parameter. </p>
 
 </body>
 </html>

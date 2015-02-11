@@ -31,9 +31,15 @@ BOOST_AUTO_TEST_CASE(test_for_each_value)
     string input = "{\"A\":\"Jane\", \"B\":\"Roe\",\"C\":10}";
     json val = json::parse_string(input);
 
-    BOOST_CHECK(val[0].type() == json::string_t);
-    BOOST_CHECK(val[1].type() == json::string_t);
-    BOOST_CHECK(val[2].type() == json::ulonglong_t);
+    json::object_iterator it = val.begin_members();
+
+    BOOST_CHECK(it->value().type() == jsoncons::value_type::string_t);
+    ++it;
+    BOOST_CHECK(it->value().type() == jsoncons::value_type::string_t);
+    ++it;
+    BOOST_CHECK(it->value().type() == jsoncons::value_type::ulonglong_t);
+    ++it;
+    BOOST_CHECK(it == val.end_members());
 }
 
 BOOST_AUTO_TEST_CASE(test_assignment)
@@ -101,7 +107,10 @@ BOOST_AUTO_TEST_CASE(test_array)
 
 BOOST_AUTO_TEST_CASE(example)
 {
-    std::string in = "\"getValuesReturn\" : {\"return\" : \"true\",\"TextTag\" : \"Text!\",\"String\" : [\"First item\",\"Second item\",\"Third item\"],\"TagWithAttrsAndText\" : {\"content\" : \"Text!\",\"attr3\" : \"value3\",\"attr2\" : \"value2\",\"attr1\" : \"value1\"},\"EmptyTag\" : true,\"attribute\" : {\"attrValue\" : \"value\"},\"TagWithAttrs\" : {\"attr3\" : \"value3\",\"attr2\" : \"value2\",\"attr1\" : \"value1\"}}}";
+    std::cout << "EXAMPLE" << std::endl;
+    std::string in = "{\"getValuesReturn\" : {\"return\" : \"true\",\"TextTag\" : \"Text!\",\"String\" : [\"First item\",\"Second item\",\"Third item\"],\"TagWithAttrsAndText\" : {\"content\" : \"Text!\",\"attr3\" : \"value3\",\"attr2\" : \"value2\",\"attr1\" : \"value1\"},\"EmptyTag\" : true,\"attribute\" : {\"attrValue\" : \"value\"},\"TagWithAttrs\" : {\"attr3\" : \"value3\",\"attr2\" : \"value2\",\"attr1\" : \"value1\"}}}";
+
+    std::cout << in << std::endl;
     std::istringstream is(in);
 
     json root = json::parse(is);
@@ -423,7 +432,7 @@ BOOST_AUTO_TEST_CASE(test_big_file)
         handler.name(sex);
         handler.value(john_sex);
         handler.name(salary);
-        handler.value((long long)70000);
+        handler.value(70000);
         handler.name(interests);
         handler.begin_array();
         handler.value(reading);
@@ -460,35 +469,36 @@ BOOST_AUTO_TEST_CASE(test_big_file)
 class my_json_filter : public json_filter
 {
 public:
-    my_json_filter(json_output_handler& parent)
-       : json_filter(parent)
+    my_json_filter(json_output_handler& handler)
+       : json_filter(handler)
     {
     }
 
-    virtual void name(const std::string& name, const parsing_context& context)
+private:
+    virtual void do_name(const char* p, int length, const parsing_context& context)
     {
-        name_ = name;
-        if (name != "name")
+        property_name_ = string(p,length);
+        if (property_name_ != "name")
         {
-            parent().name(name, context);
+            input_handler().name(p, length, context);
         }
     }
 
-// value(...) implementation
-    virtual void string_value(const std::string& value, const parsing_context& context)
+    virtual void do_string_value(const char* p, int length, const parsing_context& context)
     {
-        if (name_ == "name")
+        if (property_name_ == "name")
         {
+            string value(p,length);
             size_t end_first = value.find_first_of(" \t");
             size_t start_last = value.find_first_not_of(" \t", end_first);
-            parent().name("first-name", context);
+            input_handler().name("first-name", context);
             std::string first = value.substr(0, end_first);
-            parent().value(first, context);
+            input_handler().value(first, context); 
             if (start_last != std::string::npos)
             {
-                parent().name("last-name", context);
+                input_handler().name("last-name", context);
                 std::string last = value.substr(start_last);
-                parent().value(last, context);
+                input_handler().value(last, context); 
             }
             else
             {
@@ -499,11 +509,11 @@ public:
         }
         else
         {
-            parent().value(value, context);
+            input_handler().value(p, length, context);
         }
     }
-private:
-    std::string name_;
+
+    std::string property_name_;
 };
 
 BOOST_AUTO_TEST_CASE(test_filter)

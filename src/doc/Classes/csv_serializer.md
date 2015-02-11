@@ -1,6 +1,6 @@
     jsoncons_ext::csv::csv_serializer
 
-The `csv_serializer` class is an instantiation of the `basic_csv_serializer` class template that uses char as the character type.  It implements [json_output_handler](json_output_handler) and supports formatting a JSON value as a [CSV file](http://tools.ietf.org/html/rfc4180).
+The `csv_serializer` class is an instantiation of the `basic_csv_serializer` class template that uses `char` as the character type.  It implements [json_output_handler](json_output_handler) and supports formatting a JSON value as a [CSV file](http://tools.ietf.org/html/rfc4180).
 
 ### Header
 
@@ -11,11 +11,13 @@ The `csv_serializer` class is an instantiation of the `basic_csv_serializer` cla
     csv_serializer(std::ostream& os)
 Constructs a `csv_serializer` that is associated with an output stream
 `os`. Uses default [csv formatting parameters](csv formatting parameters).
+You must ensure that the output stream exists as long as does `csv_serializer`, as `json_serializer` holds a pointer to but does not own this object.
 
     csv_serializer(std::ostream& os,
                    const json& params)
 Constructs a `csv_serializer` that is associated with an output stream
 `os` and [csv formatting parameters](csv formatting parameters).
+You must ensure that the output stream exists as long as does `csv_serializer`, as `json_serializer` holds a pointer to but does not own this object.
 
 ### Member functions
 
@@ -23,41 +25,6 @@ Constructs a `csv_serializer` that is associated with an output stream
 ### Destructor
 
     virtual ~json_serializer()
-
-### Event handler methods
-
-    virtual void begin_object()
-Receive notification of the start of a JSON object
-
-    virtual void end_object()
-Receive notification of the end of a JSON object
-
-    virtual void begin_array()
-Receive notification of the start of a JSON array
-
-    virtual void end_array()
-Receive notification of the end of a JSON object
-
-    virtual void name(const std::string& name)
-Receive notification of the `name` of a name value pair
-
-    virtual void value(const std::string& val)
-Receive notification of a `string` value
-
-    virtual void value(double val)
-Receive notification of a floating point number
-
-    virtual void value(long long val)
-Receive notification of a signed integer
-
-    virtual void value(unsigned long long val)
-Receive notification of a non-negative integer
-
-    virtual void value(bool val)
-Receive notification of a boolean value
-
-    virtual void null_value()
-Receive notification of `null`
 
 ### Examples
 

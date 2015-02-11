@@ -30,12 +30,6 @@ struct csv_char_traits
 template <>
 struct csv_char_traits<char>
 {
-    static bool contains_char(const std::string& s, char c)
-    {
-        size_t pos = s.find_first_of(c);
-        return pos == std::string::npos ? false : true;
-    }
-
     static const std::string all_literal() {return "all";};
 
     static const std::string minimal_literal() {return "minimal";};
@@ -48,12 +42,6 @@ struct csv_char_traits<char>
 template <>
 struct csv_char_traits<wchar_t>
 {
-    static bool contains_char(const std::wstring& s, wchar_t c)
-    {
-        size_t pos = s.find_first_of(c);
-        return pos == std::string::npos ? false : true;
-    }
-
     static const std::wstring all_literal() {return L"all";};
 
     static const std::wstring minimal_literal() {return L"minimal";};
@@ -62,15 +50,16 @@ struct csv_char_traits<wchar_t>
 
     static const std::wstring nonnumeric_literal() {return L"nonumeric";};
 };
-
+ 
 template <typename Char>
-void escape_string(const std::basic_string<Char>& s,
+void escape_string(const Char* s,
+                   size_t length,
                    Char quote_char, Char quote_escape_char,
                    std::basic_ostream<Char>& os)
 {
-    typename std::basic_string<Char>::const_iterator begin = s.begin();
-    typename std::basic_string<Char>::const_iterator end = s.end();
-    for (typename std::basic_string<Char>::const_iterator it = begin; it != end; ++it)
+    const Char* begin = s;
+    const Char* end = s + length;
+    for (const Char* it = begin; it != end; ++it)
     {
         Char c = *it;
         if (c == quote_char)
@@ -84,7 +73,7 @@ void escape_string(const std::basic_string<Char>& s,
     }
 }
 
-template<typename Char,class Storage>
+template<typename Char,class Alloc>
 class basic_csv_serializer : public jsoncons::basic_json_output_handler<Char>
 {
     struct stack_item
@@ -106,7 +95,7 @@ class basic_csv_serializer : public jsoncons::basic_json_output_handler<Char>
 public:
     basic_csv_serializer(std::basic_ostream<Char>& os)
        :
-       os_(os),
+       os_(std::addressof(os)),
        format_(),
        stack_(),
        original_precision_(),
@@ -122,9 +111,9 @@ public:
     }
 
     basic_csv_serializer(std::basic_ostream<Char>& os,
-                         const jsoncons::basic_json<Char,Storage>& params)
+                         const jsoncons::basic_json<Char,Alloc>& params)
        :
-       os_(os),
+       os_(std::addressof(os)),
        format_(),
        stack_(),
        original_precision_(),
@@ -165,27 +154,29 @@ public:
     {
     }
 
-    virtual void begin_json()
+private:
+
+    virtual void do_begin_json()
     {
     }
 
-    virtual void end_json()
+    virtual void do_end_json()
     {
     }
 
-    virtual void begin_object()
+    virtual void do_begin_object()
     {
         stack_.push_back(stack_item(true));
     }
 
-    virtual void end_object()
+    virtual void do_end_object()
     {
         if (stack_.size() == 2)
         {
-            os_ << line_delimiter_;
+            *os_ << line_delimiter_;
             if (stack_[0].count_ == 0)
             {
-                os_ << header_os_.str() << line_delimiter_;
+                *os_ << header_os_.str() << line_delimiter_;
             }
         }
         stack_.pop_back();
@@ -193,23 +184,23 @@ public:
         end_value();
     }
 
-    virtual void begin_array()
+    virtual void do_begin_array()
     {
         stack_.push_back(stack_item(false));
     }
 
-    virtual void end_array()
+    virtual void do_end_array()
     {
         if (stack_.size() == 2)
         {
-            os_ << line_delimiter_;
+            *os_ << line_delimiter_;
         }
         stack_.pop_back();
 
         end_value();
     }
 
-    virtual void name(const std::basic_string<Char>& name)
+    virtual void do_name(const Char* name, size_t length)
     {
         if (stack_.size() == 2)
         {
@@ -217,25 +208,25 @@ public:
             {
                 if (stack_.back().count_ > 0)
                 {
-                    os_.put(field_delimiter_);
+                    os_->put(field_delimiter_);
                 }
                 bool quote = false;
                 if (quote_style_ == quote_all || quote_style_ == quote_nonnumeric ||
-                    (quote_style_ == quote_minimal && csv_char_traits<Char>::contains_char(name,field_delimiter_)))
+                    (quote_style_ == quote_minimal && std::char_traits<Char>::find(name,length,field_delimiter_) != nullptr))
                 {
                     quote = true;
-                    os_.put(quote_char_);
+                    os_->put(quote_char_);
                 }
-                jsoncons_ext::csv::escape_string<Char>(name, quote_char_, quote_escape_char_, os_);
+                jsoncons_ext::csv::escape_string<Char>(name, length, quote_char_, quote_escape_char_, *os_);
                 if (quote)
                 {
-                    os_.put(quote_char_);
+                    os_->put(quote_char_);
                 }
                 header_[name] = stack_.back().count_;
             }
             else
             {
-                typename std::map<std::basic_string<Char>,size_t>::iterator it = header_.find(name);
+                typename std::map<std::basic_string<Char>,size_t>::iterator it = header_.find(std::basic_string<Char>(name,length));
                 if (it == header_.end())
                 {
                     stack_.back().skip_ = true;
@@ -246,7 +237,7 @@ public:
                     stack_.back().skip_ = false;
                     while (stack_.back().count_ < it->second)
                     {
-                        os_.put(field_delimiter_);
+                        os_->put(field_delimiter_);
                         ++stack_.back().count_;
                     }
                 //    std::cout << " (" << it->value() << " " << stack_.back().count_ << ") ";
@@ -255,53 +246,37 @@ public:
         }
     }
 
-    virtual void null_value()
+    virtual void do_null_value()
     {
         if (stack_.size() == 2 && !stack_.back().skip_)
         {
             if (stack_.back().is_object() && stack_[0].count_ == 0)
             {
-                null_value(header_os_);
+                do_null_value(header_os_);
             }
             else
             {
-                null_value(os_);
+                do_null_value(*os_);
             }
         }
     }
-// value(...) implementation
 
-    virtual void string_value(const std::basic_string<Char>& val)
+    virtual void do_string_value(const Char* val, size_t length)
     {
         if (stack_.size() == 2 && !stack_.back().skip_)
         {
             if (stack_.back().is_object() && stack_[0].count_ == 0)
             {
-                value(val,header_os_);
+                value(val,length,header_os_);
             }
             else
             {
-                value(val,os_);
+                value(val,length,*os_);
             }
         }
     }
 
-    virtual void double_value(double val)
-    {
-        if (stack_.size() == 2 && !stack_.back().skip_)
-        {
-            if (stack_.back().is_object() && stack_[0].count_ == 0)
-            {
-                value(val,header_os_);
-            }
-            else
-            {
-                value(val,os_);
-            }
-        }
-    }
-
-    virtual void longlong_value(long long val)
+    virtual void do_double_value(double val)
     {
         if (stack_.size() == 2 && !stack_.back().skip_)
         {
@@ -311,12 +286,12 @@ public:
             }
             else
             {
-                value(val,os_);
+                value(val,*os_);
             }
         }
     }
 
-    virtual void ulonglong_value(unsigned long long val)
+    virtual void do_longlong_value(long long val)
     {
         if (stack_.size() == 2 && !stack_.back().skip_)
         {
@@ -326,12 +301,12 @@ public:
             }
             else
             {
-                value(val,os_);
+                value(val,*os_);
             }
         }
     }
 
-    virtual void bool_value(bool val)
+    virtual void do_ulonglong_value(unsigned long long val)
     {
         if (stack_.size() == 2 && !stack_.back().skip_)
         {
@@ -341,24 +316,38 @@ public:
             }
             else
             {
-                value(val,os_);
+                value(val,*os_);
             }
         }
     }
 
-private:
-    virtual void value(const std::basic_string<Char>& val, std::basic_ostream<Char>& os)
+    virtual void do_bool_value(bool val)
+    {
+        if (stack_.size() == 2 && !stack_.back().skip_)
+        {
+            if (stack_.back().is_object() && stack_[0].count_ == 0)
+            {
+                value(val,header_os_);
+            }
+            else
+            {
+                value(val,*os_);
+            }
+        }
+    }
+
+    virtual void value(const Char* val, size_t length, std::basic_ostream<Char>& os)
     {
         begin_value(os);
 
         bool quote = false;
         if (quote_style_ == quote_all || quote_style_ == quote_nonnumeric ||
-            (quote_style_ == quote_minimal && csv_char_traits<Char>::contains_char(val,field_delimiter_)))
+            (quote_style_ == quote_minimal && std::char_traits<Char>::find(val,length,field_delimiter_) != nullptr))
         {
             quote = true;
             os.put(quote_char_);
         }
-        jsoncons_ext::csv::escape_string<Char>(val, quote_char_, quote_escape_char_, os);
+        jsoncons_ext::csv::escape_string<Char>(val, length, quote_char_, quote_escape_char_, os);
         if (quote)
         {
             os.put(quote_char_);
@@ -393,7 +382,7 @@ private:
         }
         else
         {
-            std::basic_string<Char> buf = jsoncons::double_to_string<Char>(val,format_.precision());
+            std::basic_string<Char> buf = jsoncons::float_to_string<Char>(val,format_.precision());
             os << buf;
         }
 
@@ -428,7 +417,7 @@ private:
         end_value();
     }
 
-    virtual void null_value(std::basic_ostream<Char>& os)
+    virtual void do_null_value(std::basic_ostream<Char>& os)
     {
         begin_value(os);
 
@@ -457,7 +446,7 @@ private:
         }
     }
 
-    std::basic_ostream<Char>& os_;
+    std::basic_ostream<Char>* os_;
     jsoncons::basic_output_format<Char> format_;
     std::vector<stack_item> stack_;
     std::streamsize original_precision_;
@@ -471,7 +460,7 @@ private:
     std::map<std::basic_string<Char>,size_t> header_;
 };
 
-typedef basic_csv_serializer<char,jsoncons::storage<char>> csv_serializer;
+typedef basic_csv_serializer<char,std::allocator<void>> csv_serializer;
 
 }}
 

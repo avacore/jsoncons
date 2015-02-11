@@ -19,158 +19,204 @@ public:
     virtual ~basic_json_output_handler() {}
 
     // Overloaded methods
+
+    void begin_json()
+    {
+        do_begin_json();
+    }
+
+    void end_json()
+    {
+        do_end_json();
+    }
+
+    void begin_object()
+    {
+        do_begin_object();
+    }
+
+    void end_object()
+    {
+        do_end_object();
+    }
+
+    void begin_array()
+    {
+        do_begin_array();
+    }
+
+    void end_array()
+    {
+        do_end_array();
+    }
+
+    void name(const std::basic_string<Char>& name)
+    {
+        do_name(name.c_str(), name.length());
+    }
+
+    void name(const Char* p, size_t length) 
+    {
+        do_name(p, length);
+    }
+
     void value(const std::basic_string<Char>& value) 
     {
-        string_value(value);
+        do_string_value(value.c_str(), value.length());
     }
 
-    void value(null_type)
+    void value(const Char* p, size_t length) 
     {
-        null_value();
+        do_string_value(p, length);
     }
 
-    void value(float value)
+    void value(const Char* p) 
     {
-        double_value((double)value);
-    }
-
-    void value(double value)
-    {
-        double_value(value);
+        do_string_value(p, std::char_traits<Char>::length(p));
     }
 
     void value(int value) 
     {
-        longlong_value((long long)value);
-    }
-
-    void value(unsigned int value)
-    {
-        ulonglong_value((unsigned long long)value);
+        do_longlong_value(value);
     }
 
     void value(long value) 
     {
-        longlong_value((long long)value);
-    }
-
-    void value(unsigned long value)
-    {
-        ulonglong_value((unsigned long long)value);
+        do_longlong_value(value);
     }
 
     void value(long long value) 
     {
-        longlong_value(value);
+        do_longlong_value(value);
     }
 
-    void value(unsigned long long value)
+    void value(unsigned int value) 
     {
-        ulonglong_value(value);
+        do_ulonglong_value(value);
     }
 
-    void value(bool value)
+    void value(unsigned long value) 
     {
-        bool_value(value);
+        do_ulonglong_value(value);
     }
 
-//  Implementation start here
+    void value(unsigned long long value) 
+    {
+        do_ulonglong_value(value);
+    }
 
-    virtual void begin_json() = 0;
+    void value(double value)
+    {
+        do_double_value(value);
+    }
 
-    virtual void end_json() = 0;
+    void value(bool value) 
+    {
+        do_bool_value(value);
+    }
 
-    virtual void name(const std::basic_string<Char>& name) = 0;
+    void value(null_type)
+    {
+        do_null_value();
+    }
 
-    virtual void begin_object() = 0;
+private:
 
-    virtual void end_object() = 0;
+    virtual void do_begin_json() = 0;
 
-    virtual void begin_array() = 0;
+    virtual void do_end_json() = 0;
 
-    virtual void end_array() = 0;
+    virtual void do_name(const Char* name, size_t length) = 0;
 
-// value(...) implementation
+    virtual void do_begin_object() = 0;
 
-    virtual void null_value() = 0;
+    virtual void do_end_object() = 0;
 
-    virtual void string_value(const std::basic_string<Char>& value) = 0;
+    virtual void do_begin_array() = 0;
 
-    virtual void double_value(double value) = 0;
+    virtual void do_end_array() = 0;
 
-    virtual void longlong_value(long long value) = 0;
+    virtual void do_null_value() = 0;
 
-    virtual void ulonglong_value(unsigned long long value) = 0;
+    virtual void do_string_value(const Char* value, size_t length) = 0;
 
-    virtual void bool_value(bool value) = 0;
+    virtual void do_double_value(double value) = 0;
+
+    virtual void do_longlong_value(long long value) = 0;
+
+    virtual void do_ulonglong_value(unsigned long long value) = 0;
+
+    virtual void do_bool_value(bool value) = 0;
 };
 
 template <typename Char>
-class null_basic_json_output_handler : public basic_json_output_handler<Char>
+class null_json_output_handler_impl : public basic_json_output_handler<Char>
 {
-public:
+private:
 
-    virtual void begin_json()
+    virtual void do_begin_json()
     {
     }
 
-    virtual void end_json()
+    virtual void do_end_json()
     {
     }
 
-    virtual void name(const std::basic_string<Char>&)
+    virtual void do_name(const Char* name, size_t length)
     {
     }
 
-    virtual void begin_object()
+    virtual void do_begin_object()
     {
     }
 
-    virtual void end_object()
+    virtual void do_end_object()
     {
     }
 
-    virtual void begin_array()
+    virtual void do_begin_array()
     {
     }
 
-    virtual void end_array()
+    virtual void do_end_array()
     {
     }
 
-    virtual void null_value()
+    virtual void do_null_value()
     {
     }
 
-// value(...) implementation
-
-    virtual void string_value(const std::basic_string<Char>&)
+    virtual void do_string_value(const Char*, size_t length)
     {
     }
 
-    virtual void double_value(double)
+    virtual void do_double_value(double)
     {
     }
 
-    virtual void longlong_value(long long)
+    virtual void do_longlong_value(long long)
     {
     }
 
-    virtual void ulonglong_value(unsigned long long)
+    virtual void do_ulonglong_value(unsigned long long)
     {
     }
 
-    virtual void bool_value(bool)
+    virtual void do_bool_value(bool)
     {
     }
 
 };
 
+template<typename Char>
+basic_json_output_handler<Char>& null_json_output_handler()
+{
+    static null_json_output_handler_impl<Char> instance;
+    return instance;
+}
+
 typedef basic_json_output_handler<char> json_output_handler;
 typedef basic_json_output_handler<wchar_t> wjson_output_handler;
-
-typedef null_basic_json_output_handler<char> null_json_output_handler;
-typedef null_basic_json_output_handler<wchar_t> wnull_json_output_handler;
 
 }
 #endif

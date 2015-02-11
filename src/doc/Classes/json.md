@@ -1,8 +1,12 @@
     jsoncons::json
 
-    typedef basic_json<char,storage<char>> json
+    typedef basic_json<char,std::allocator<void>> json
 
-The `json` class is an instantiation of the `basic_json` class template that uses `char` as the character type.
+The `json` class is an instantiation of the `basic_json` class template that uses `char` as the character type
+and `std::allocator<void>` as the allocator type. The allocator type is used to supply an allocator for dynamically allocated, 
+fixed size small objects in the `json` container, the `json` container will rebind it as necessary. The allocator type
+is not used for structures including vectors and strings that use large or variable amounts of memory, 
+these always use the default allocators.
 
 ### Header
 
@@ -15,7 +19,7 @@ The `json` class is an instantiation of the `basic_json` class template that use
 [member_type](json_member_type) stores a name and a json value
 
     any
-[any](json_any) can contain any value that supports copy construction and assignment.
+[any](json%20any) can contain any value that supports copy construction and assignment.
 
     object
 
@@ -24,10 +28,10 @@ The `json` class is an instantiation of the `basic_json` class template that use
 Type tags that can be used with `is<T>` and `as<T>`
 
     object_iterator
-A random access iterator to `json::member_type`
+A bidirectional iterator to `json::member_type`
 
     const_object_iterator
-A random access iterator to `const json::member_type`
+A bidirectional iterator to `const json::member_type`
 
     array_iterator
 A random access iterator to `json`
@@ -49,12 +53,15 @@ Constant json null value
 ### Static member functions
 
     static json parse(std::istream& is)
+    static json parse(std::istream& is, parse_error_handler& err_handler)
 Parses an input stream of JSON text and returns a json object or array value. If parsing fails, throws a [json_parse_exception](json_parse_exception).
 
     static json parse_file(const std::string& filename)
+    static json parse_file(const std::string& filename, parse_error_handler& err_handler)
 Opens a binary input stream to a JSON unicode file, parsing the file assuming UTF-8, and returns a json object or array value. If parsing fails, throws a [json_parse_exception](json_parse_exception). This method expects that the file contains UTF-8 (or clean 7 bit ASCII), if that is not the case, use the `parse` method that takes an `std::istream` instead, imbue your stream with the appropriate facet for handling unicode conversions.
 
     static json parse_string(const std::string& s)
+    static json parse_string(const std::string& s, parse_error_handler& err_handler)
 Parses a string of JSON text and returns a json object or array value. If parsing fails, throws a [json_parse_exception](json_parse_exception).
 
     static json make_array()
@@ -182,9 +189,9 @@ Returns `true` if a json object has a member named `name`, otherwise `false`.
 
     template <typename T>
     bool is() const
-Returns `true` if json value is of type `T`, `false` otherwise.  
+Returns `true` if json value has type `T`, `false` otherwise.  
 
-    is<short> 
+    is<short>
     is<unsigned short> 
     is<int> 
     is<unsigned int> 
@@ -194,7 +201,6 @@ Returns `true` if json value is of type `T`, `false` otherwise.
     is<unsigned long long> 
 Return `true` if json value is of integral type and within the range of the template type, `false` otherwise.  
 
-    is<float> 
     is<double> 
 Return true if the json value is of floating point type and within the range of the template type, `false` otherwise.  
 
@@ -217,7 +223,7 @@ Returns `true` if the json value is an object, `false` otherwise.
 Returns `true` if the json value is an array, `false` otherwise.  
 
     is<json::std::vector<T>>
-Returns `true` if the json value is an array and each element is of type `T`, `false` otherwise.
+Returns `true` if the json value is an array and each element has type `T`, `false` otherwise.
 
     bool is_null() const
     bool is_string() const
@@ -229,6 +235,7 @@ Returns `true` if the json value is an array and each element is of type `T`, `f
     bool is_object() const
     bool is_array() const
     bool is_any() const
+Non-generic versions of `is_` methods
 
     json& operator[](size_t i)
     const json& operator[](size_t i) const
@@ -259,22 +266,38 @@ If `name` matches the name of a member in the json object, returns a copy of the
     T as() const
 Attempts to coerce the json value to the template type
 
-    bool as_bool() const
+    as_bool<bool>
+Returns `true` or `false` if value has a boolean type, otherwise throws.
 
-    double as_double() const
+    as<double>
 If value is double, returns value, if value is signed or unsigned integer, casts to double, if value is `null`, returns `NaN`, otherwise throws.
 
-    long long as_longlong() const
-If value is long long, returns value, if value is unsigned long long or double, casts to long long, if value is bool, returns 1 if true and 0 if false, otherwise throws.
+    as<short>
+    as<unsigned short> 
+    as<int> 
+    as<unsigned int> 
+    as<long> 
+    as<unsigned long> 
+    as<long long> 
+    as<unsigned long long> 
+Return integer value if value has integral type, performs cast if value has double type, returns 1 or 0 if value has bool type, otherwise throws.
 
-    unsigned long long as_ulonglong() const
-
-    std::string as_string() const
+    as<string>
 If value is string, returns value, otherwise returns result of `to_string`.
 
-    const any& any_value() const
-    any& any_value() 
-If the value has type `any`, returns a reference to the value, otherwise throws  
+    bool as_bool() const
+    long long as_longlong() const
+    unsigned long long as_ulonglong() const
+    double as_double() const
+    std::string as_string() const
+Non-generic versions of `as` methods
+
+    template <typename T>
+    const T& any_cast() const
+
+    template <typename T>
+    T& any_cast() 
+If the value does not have type `any`, throws, otherwise casts the value back to the original type.
 
 ### Modifiers
 

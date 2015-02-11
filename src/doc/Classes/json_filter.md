@@ -2,7 +2,7 @@
 
     typedef basic_json_filter<char> json_filter
 
-The `json_filter` class is an instantiation of the `basic_json_filter` class template that uses char as the character type.
+The `json_filter` class is an instantiation of the `basic_json_filter` class template that uses `char` as the character type.
 
 ### Header
 
@@ -14,67 +14,25 @@ The `json_filter` class is an instantiation of the `basic_json_filter` class tem
 
 ### Constructors
 
-    json_filter(json_input_handler& parent)
+    json_filter(json_input_handler& handler)
+    json_filter(json_input_handler& handler,
+                 parse_error_handler& err_handler)
+All JSON events that pass through the `json_filter` go to the specified `json_input_handler` (i.e. another filter.)
+You must ensure that the `handler` exists as long as does `json_filter`, as `json_filter` holds a pointer to but does not own this object.
 
-    json_filter(json_output_handler& output_handler)
-
-### Implementing methods
-
-    virtual void begin_json()
-Receive notification of the start of JSON text
-
-    virtual void end_json()
-Receive notification of the end of JSON text
-
-    virtual void begin_object(const parsing_context& context)
-Receive notification of the start of a JSON object. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void end_object(const parsing_context& context)
-Receive notification of the end of a JSON object. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void begin_array(const parsing_context& context)
-Receive notification of the start of a JSON array. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void end_array(const parsing_context& context)
-Receive notification of the end of a JSON array. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void name(const std::string& name, const parsing_context& context)
-Receive notification of the `name` part of a name-value pair. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter.  
-
-    virtual void null_value(const parsing_context& context)
-Receive notification of a null value. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void null_value(const parsing_context& context)
-Receive notification of a null value. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void string_value(const std::string& value, const parsing_context& context)
-Receive notification of a string value. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void double_value(double value, const parsing_context& context)
-Receive notification of a floating point number. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void longlong_value(long long value, const parsing_context& context)
-Receive notification of a signed integer. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void ulonglong_value(unsigned long long value, const parsing_context& context)
-Receive notification of a non-negative integer. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
-
-    virtual void bool_value(bool value, const parsing_context& context)
-Receive notification of a boolean value. Contextual information including
-line and column information is provided in the [parsing_context](parsing_context) parameter. 
+    json_filter(json_output_handler& handler)
+    json_filter(json_output_handler& handler,
+                 parse_error_handler& err_handler)
+All JSON events that pass through the `json_filter` go to the specified `json_output_handler`.
+You must ensure that the `handler` exists as long as does `json_filter`, as `json_filter` holds a pointer to but does not own this object.
 
 ### Accessors
 
+    json_input_handler& input_handler()
+Returns a reference to the JSON event handler. 
+
+### Deprecated methods
+
     json_input_handler& parent()
-Returns a reference to the parent input handler. 
+Replaced by `input_handler`. 
+

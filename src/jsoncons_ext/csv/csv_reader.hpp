@@ -16,27 +16,14 @@
 #include <stdexcept>
 #include "jsoncons/jsoncons.hpp"
 #include "jsoncons/json_input_handler.hpp"
-#include "jsoncons/error_handler.hpp"
-#include "jsoncons/json_reader.hpp"
+#include "jsoncons/parse_error_handler.hpp"
 #include "jsoncons/json.hpp"
 
 namespace jsoncons_ext { namespace csv {
 
-template<typename Char,class Storage>
+template<typename Char,class Alloc>
 class basic_csv_reader : private jsoncons::basic_parsing_context<Char>
 {
-    struct buffered_stream
-    {
-        buffered_stream(std::basic_istream<Char>& is)
-            : is_(is)
-        {
-        }
-
-        std::basic_istream<Char>& is_;
-    };
-
-    static jsoncons::default_basic_error_handler<Char> default_err_handler;
-
     struct stack_item
     {
         stack_item()
@@ -59,74 +46,80 @@ public:
 
        :
          minimum_structure_capacity_(0),
-         column_(),
-         line_(),
+         column_(0),
+         line_(0),
          string_buffer_(),
          stack_(),
-         stream_ptr_(new buffered_stream(is)),
+         is_(std::addressof(is)),
          buffer_(default_max_buffer_length),
          buffer_capacity_(default_max_buffer_length),
          buffer_position_(0),
          buffer_length_(0),
-         handler_(handler),
-         err_handler_(default_err_handler),
+         handler_(std::addressof(handler)),
+         err_handler_(std::addressof(jsoncons::default_basic_parse_error_handler<Char>::instance())),
          assume_header_(),
          field_delimiter_(),
          quote_char_(),
          quote_escape_char_(),
-         comment_symbol_()
+         comment_symbol_(),
+         bof_(true),
+         eof_(false)
     {
         init(jsoncons::json::an_object);
     }
 
     basic_csv_reader(std::basic_istream<Char>& is,
                      jsoncons::basic_json_input_handler<Char>& handler,
-                     const jsoncons::basic_json<Char,Storage>& params)
+                     const jsoncons::basic_json<Char,Alloc>& params)
 
        :
          minimum_structure_capacity_(0),
-         column_(),
-         line_(),
+         column_(0),
+         line_(0),
          string_buffer_(),
          stack_(),
-         stream_ptr_(new buffered_stream(is)),
+         is_(std::addressof(is)),
          buffer_(default_max_buffer_length),
          buffer_capacity_(default_max_buffer_length),
          buffer_position_(0),
          buffer_length_(0),
-         handler_(handler),
-         err_handler_(default_err_handler),
+         handler_(std::addressof(handler)),
+         err_handler_(std::addressof(jsoncons::default_basic_parse_error_handler<Char>::instance())),
          assume_header_(),
          field_delimiter_(),
          quote_char_(),
          quote_escape_char_(),
-         comment_symbol_()
+         comment_symbol_(),
+         bof_(true),
+         eof_(false)
     {
         init(params);
     }
 
     basic_csv_reader(std::basic_istream<Char>& is,
                      jsoncons::basic_json_input_handler<Char>& handler,
-                     jsoncons::basic_error_handler<Char>& err_handler)
+                     jsoncons::basic_parse_error_handler<Char>& err_handler)
        :
 
          minimum_structure_capacity_(),
-         column_(),
-         line_(),
+         column_(0),
+         line_(0),
          string_buffer_(),
          stack_(),
-         stream_ptr_(new buffered_stream(is)),
+         is_(std::addressof(is)),
          buffer_(),
          buffer_capacity_(default_max_buffer_length),
          buffer_position_(0),
          buffer_length_(0),
-         handler_(handler),
-         err_handler_(err_handler),
+         handler_(std::addressof(handler)),
+         err_handler_(std::addressof(err_handler)),
          assume_header_(),
          field_delimiter_(),
          quote_char_(),
          quote_escape_char_(),
-         comment_symbol_()
+         comment_symbol_(),
+         bof_(true),
+         eof_(false)
 
 
     {
@@ -135,31 +128,33 @@ public:
 
     basic_csv_reader(std::basic_istream<Char>& is,
                      jsoncons::basic_json_input_handler<Char>& handler,
-                     jsoncons::basic_error_handler<Char>& err_handler,
-                     const jsoncons::basic_json<Char,Storage>& params)
+                     jsoncons::basic_parse_error_handler<Char>& err_handler,
+                     const jsoncons::basic_json<Char,Alloc>& params)
        :
          minimum_structure_capacity_(),
-         column_(),
-         line_(),
+         column_(0),
+         line_(0),
          string_buffer_(),
          stack_(),
-         stream_ptr_(new buffered_stream(is)),
+         is_(std::addressof(is)),
          buffer_(),
          buffer_capacity_(default_max_buffer_length),
          buffer_position_(0),
          buffer_length_(0),
-         handler_(handler),
-         err_handler_(err_handler),
+         handler_(std::addressof(handler)),
+         err_handler_(std::addressof(err_handler)),
          assume_header_(),
          field_delimiter_(),
          quote_char_(),
          quote_escape_char_(),
-         comment_symbol_()
+         comment_symbol_(),
+         bof_(true),
+         eof_(false)
     {
         init(params);
     }
 
-    void init(const jsoncons::basic_json<Char,Storage>& params)
+    void init(const jsoncons::basic_json<Char,Alloc>& params)
     {
         field_delimiter_ = params.get("field_delimiter",",").as_char();
 
@@ -176,16 +171,11 @@ public:
     {
     }
 
-    void read()
-    {
-        read(stream_ptr_->is_);
-    }
-
-    void read(std::basic_istream<Char>& is);
+    void read();
 
     bool eof() const
     {
-        return buffer_position_ > buffer_length_ && stream_ptr_->is_.eof();
+        return eof_;
     }
 
     size_t buffer_capacity() const
@@ -196,26 +186,6 @@ public:
     void buffer_capacity(size_t buffer_capacity)
     {
         buffer_capacity_ = buffer_capacity;
-    }
-
-    virtual unsigned long line_number() const
-    {
-        return line_;
-    }
-
-    virtual unsigned long column_number() const
-    {
-        return column_;
-    }
-
-    virtual size_t minimum_structure_capacity() const
-    {
-        return minimum_structure_capacity_;
-    }
-
-    virtual const std::basic_string<Char>& buffer() const
-    {
-        return string_buffer_;
     }
 
 private:
@@ -231,15 +201,28 @@ private:
 
     void read_some()
     {
-        buffer_position_ = 0;
-        if (!stream_ptr_->is_.eof())
+        if (buffer_position_ < buffer_length_)
         {
-            stream_ptr_->is_.read(&buffer_[0], buffer_capacity_);
-            buffer_length_ = static_cast<size_t>(stream_ptr_->is_.gcount());
+            return; // exhaust buffer first
+        }
+        buffer_position_ = 0;
+        if (!is_->eof())
+        {
+            is_->read(&buffer_[0], buffer_capacity_);
+            buffer_length_ = static_cast<size_t>(is_->gcount());
+            if (bof_)
+            {
+                bof_ = false;
+                if (buffer_length_ == 0)
+                {
+                    eof_ = true;
+                }
+            }
         }
         else
         {
             buffer_length_ = 0;
+            eof_ = true;
         }
     }
 
@@ -294,36 +277,68 @@ private:
         }
     }
 
+    virtual Char do_peek()
+    {
+        if (buffer_position_ >= buffer_length_)
+        {
+            read_some();
+        }
+        return buffer_[buffer_position_];
+    }
+
+    virtual bool do_eof() const
+    {
+        return eof_;
+    }
+
+    virtual Char do_last_char() const
+    {
+        return 0;
+    }
+
+    virtual unsigned long do_line_number() const
+    {
+        return line_;
+    }
+
+    virtual unsigned long do_column_number() const
+    {
+        return column_;
+    }
+
+    virtual size_t do_minimum_structure_capacity() const
+    {
+        return minimum_structure_capacity_;
+    }
+
     size_t minimum_structure_capacity_;
     unsigned long column_;
     unsigned long line_;
     std::basic_string<Char> string_buffer_;
     std::vector<stack_item> stack_;
-    std::unique_ptr<buffered_stream> stream_ptr_;
+    std::basic_istream<Char>* is_;
     std::vector<Char> buffer_;
     size_t buffer_capacity_;
     size_t buffer_position_;
     size_t buffer_length_;
-    jsoncons::basic_json_input_handler<Char>& handler_;
-    jsoncons::basic_error_handler<Char>& err_handler_;
+    jsoncons::basic_json_input_handler<Char>* handler_;
+    jsoncons::basic_parse_error_handler<Char>* err_handler_;
     bool assume_header_;
     Char field_delimiter_;
     Char quote_char_;
     Char quote_escape_char_;
     Char comment_symbol_;
+    bool bof_;
+    bool eof_;
 };
 
-template<typename Char,class Storage>
-jsoncons::default_basic_error_handler<Char> basic_csv_reader<Char,Storage>::default_err_handler;
-
-template<typename Char,class Storage>
-void basic_csv_reader<Char,Storage>::read(std::basic_istream<Char>& is)
+template<typename Char,class Alloc>
+void basic_csv_reader<Char,Alloc>::read()
 {
-    if (is.bad())
+    if (is_->bad())
     {
         JSONCONS_THROW_EXCEPTION("Input stream is invalid");
     }
-    stream_ptr_ = std::unique_ptr<buffered_stream>(new buffered_stream(is));
     buffer_.resize(buffer_capacity_);
     buffer_position_ = 0;
     buffer_length_ = 0;
@@ -331,9 +346,9 @@ void basic_csv_reader<Char,Storage>::read(std::basic_istream<Char>& is)
     line_ = 1;
     column_ = 0;
 
-    handler_.begin_json();
+    handler_->begin_json();
     stack_.push_back(stack_item());
-    handler_.begin_array(*this);
+    handler_->begin_array(*this);
     stack_.back().array_begun_ = true;
     if (assume_header_)
     {
@@ -343,13 +358,13 @@ void basic_csv_reader<Char,Storage>::read(std::basic_istream<Char>& is)
     {
         read_array_of_arrays();
     }
-    handler_.end_array(*this);
+    handler_->end_array(*this);
     stack_.pop_back();
-    handler_.end_json();
+    handler_->end_json();
 }
 
-template<typename Char,class Storage>
-void basic_csv_reader<Char,Storage>::read_array_of_arrays()
+template<typename Char,class Alloc>
+void basic_csv_reader<Char,Alloc>::read_array_of_arrays()
 {
     size_t row_capacity = 0;
     stack_.push_back(stack_item());
@@ -376,13 +391,14 @@ void basic_csv_reader<Char,Storage>::read_array_of_arrays()
 
         if (c == field_delimiter_)
         {
-            skip_ch();
+            //skip_ch();
+			continue;
         }
         if (column_ == 0) // Just got newline
         {
             if (stack_.back().array_begun_)
             {
-                handler_.end_array(*this);
+                handler_->end_array(*this);
             }
             stack_.pop_back();
             stack_.push_back(stack_item());
@@ -392,7 +408,7 @@ void basic_csv_reader<Char,Storage>::read_array_of_arrays()
             skip_ch();
             if (eof())
             {
-                err_handler_.fatal_error("JPE101", "Unexpected EOF", *this);
+                err_handler_->error(std::error_code(jsoncons::json_parser_errc::unexpected_eof, jsoncons::json_parser_category()), *this);
             }
             ignore_single_line_comment();
         }
@@ -410,11 +426,11 @@ void basic_csv_reader<Char,Storage>::read_array_of_arrays()
                     if (!stack_.back().array_begun_)
                     {
                         minimum_structure_capacity_ = row_capacity;
-                        handler_.begin_array(*this);
+                        handler_->begin_array(*this);
                         minimum_structure_capacity_ = 0;
                         stack_.back().array_begun_ = true;
                     }
-                    handler_.value(string_buffer_,*this);
+                    handler_->value(string_buffer_.c_str(),string_buffer_.length(),*this);
                 }
                 else
                 {
@@ -423,11 +439,11 @@ void basic_csv_reader<Char,Storage>::read_array_of_arrays()
                     if (!stack_.back().array_begun_)
                     {
                         minimum_structure_capacity_ = row_capacity;
-                        handler_.begin_array(*this);
+                        handler_->begin_array(*this);
                         minimum_structure_capacity_ = 0;
                         stack_.back().array_begun_ = true;
                     }
-                    handler_.value(string_buffer_,*this);
+                    handler_->value(string_buffer_.c_str(),string_buffer_.length(),*this);
                 }
             }
         }
@@ -437,16 +453,16 @@ void basic_csv_reader<Char,Storage>::read_array_of_arrays()
     {
         if (stack_.back().array_begun_)
         {
-            handler_.end_array(*this);
+            handler_->end_array(*this);
         }
         stack_.pop_back();
     }
 }
 
-template<typename Char,class Storage>
-void basic_csv_reader<Char,Storage>::read_array_of_objects()
+template<typename Char,class Alloc>
+void basic_csv_reader<Char,Alloc>::read_array_of_objects()
 {
-    std::vector<std::string> header;
+    std::vector<std::basic_string<Char>> header;
     size_t row_index = 0;
     size_t column_index = 0;
 
@@ -479,7 +495,7 @@ void basic_csv_reader<Char,Storage>::read_array_of_objects()
         {
             if (stack_.back().array_begun_)
             {
-                handler_.end_object(*this);
+                handler_->end_object(*this);
             }
             stack_.pop_back();
             stack_.push_back(stack_item());
@@ -492,14 +508,14 @@ void basic_csv_reader<Char,Storage>::read_array_of_objects()
             if (!stack_.back().array_begun_)
             {
                 minimum_structure_capacity_ = header.size();
-                handler_.begin_object(*this);
+                handler_->begin_object(*this);
                 minimum_structure_capacity_ = 0;
                 stack_.back().array_begun_ = true;
             }
             if (column_index < header.size())
             {
-                handler_.name(header[column_index],*this);
-                handler_.value(string_buffer_,*this);
+                handler_->name(header[column_index],*this);
+                handler_->value(string_buffer_.c_str(),string_buffer_.length(),*this);
             }
             ++column_index;
         }
@@ -516,14 +532,14 @@ void basic_csv_reader<Char,Storage>::read_array_of_objects()
                 if (!stack_.back().array_begun_)
                 {
                     minimum_structure_capacity_ = header.size();
-                    handler_.begin_object(*this);
+                    handler_->begin_object(*this);
                     minimum_structure_capacity_ = 0;
                     stack_.back().array_begun_ = true;
                 }
                 if (column_index < header.size())
                 {
-                    handler_.name(header[column_index],*this);
-                    handler_.value(string_buffer_,*this);
+                    handler_->name(header[column_index],*this);
+                    handler_->value(string_buffer_.c_str(),string_buffer_.length(),*this);
                 }
             }
             ++column_index;
@@ -535,14 +551,14 @@ void basic_csv_reader<Char,Storage>::read_array_of_objects()
     {
         if (stack_.back().array_begun_)
         {
-            handler_.end_object(*this);
+            handler_->end_object(*this);
         }
         stack_.pop_back();
     }
 }
 
-template<typename Char,class Storage>
-void basic_csv_reader<Char,Storage>::parse_string()
+template<typename Char,class Alloc>
+void basic_csv_reader<Char,Alloc>::parse_string()
 {
     string_buffer_.clear();
 
@@ -577,8 +593,8 @@ void basic_csv_reader<Char,Storage>::parse_string()
     }
 }
 
-template<typename Char,class Storage>
-void basic_csv_reader<Char,Storage>::parse_quoted_string()
+template<typename Char,class Alloc>
+void basic_csv_reader<Char,Alloc>::parse_quoted_string()
 {
     string_buffer_.clear();
 
@@ -589,7 +605,7 @@ void basic_csv_reader<Char,Storage>::parse_quoted_string()
         Char c = read_ch();
         if (eof())
         {
-            err_handler_.fatal_error("JPE101", "EOF, expected quote character", *this);
+            err_handler_->error(std::error_code(jsoncons::json_parser_errc::eof_reading_string_value, jsoncons::json_parser_category()), *this);
         }
         else if (c == quote_escape_char_ && peek() == quote_char_)
         {
@@ -634,8 +650,8 @@ void basic_csv_reader<Char,Storage>::parse_quoted_string()
     }
 }
 
-template<typename Char,class Storage>
-void basic_csv_reader<Char,Storage>::ignore_single_line_comment()
+template<typename Char,class Alloc>
+void basic_csv_reader<Char,Alloc>::ignore_single_line_comment()
 {
     bool done = false;
     while (!done)
@@ -665,7 +681,7 @@ void basic_csv_reader<Char,Storage>::ignore_single_line_comment()
 
 }
 
-typedef basic_csv_reader<char,jsoncons::storage<char>> csv_reader;
+typedef basic_csv_reader<char,std::allocator<void>> csv_reader;
 
 }}
 

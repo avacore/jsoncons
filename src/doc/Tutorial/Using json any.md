@@ -25,7 +25,7 @@ a json::any value, like this:
 
     obj.set("mydata",json::any(A));
 
-    matrix<double> B = obj["mydata"].as<json::any>().cast<matrix<double>>();
+    matrix<double>& B = obj["mydata"].any_cast<matrix<double>>();
 
 ### Serializing a json `any` value
  
@@ -40,8 +40,8 @@ the output is
 You can, however, implement a function template specialization of `serialize` in 
 the `jsoncons` namespace, in a header file, like this:
 
-    #ifndef MY_CUSTOM_DATA_HPP
-    #define MY_CUSTOM_DATA_HPP
+    #ifndef MY_ANY_SPECIALIZATIONS_HPP
+    #define MY_ANY_SPECIALIZATIONS_HPP
 
     #include "jsoncons/json.hpp"
     #include <boost/numeric/ublas/matrix.hpp>
@@ -49,8 +49,7 @@ the `jsoncons` namespace, in a header file, like this:
     namespace jsoncons {
 
     template<> inline 
-    void serialize(json_output_handler& os, 
-                   const boost::numeric::ublas::matrix<double>& A)
+    void serialize(json_output_handler& os, const boost::numeric::ublas::matrix<double>& A)
     {
         os.begin_array();
         for (size_t i = 0; i < A.size1(); ++i)

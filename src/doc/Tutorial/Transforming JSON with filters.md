@@ -17,7 +17,7 @@ Suppose you have a JSON address book that looks like this
 
 Now suppose you want to break the name into a first name and last name, and report a warning when `name` does not contain a space or tab separator. Pretend that the file `address-book.json` is too large to hold in memory.
 
-You can achieve the desired result by subclassing the [json_filter](json_filter) class, overriding the default methods for name and string value event notifications, and delegating modified event notifications to the parent [json_input_handler](json_input_handler) (which in this example will forward them to a [json_serializer](json_serializer).) 
+You can achieve the desired result by subclassing the [json_filter](json_filter) class, overriding the default methods for receiving name and string value events, and passing modified events on to the parent [json_input_handler](json_input_handler) (which in this example will forward them to a [json_serializer](json_serializer).) 
 
     #include "jsoncons/json_serializer.hpp"
     #include "jsoncons/json_filter.hpp"
@@ -32,49 +32,53 @@ You can achieve the desired result by subclassing the [json_filter](json_filter)
     class my_json_filter : public json_filter
     {
     public:
-        my_json_filter(json_output_handler& parent)
-            : json_filter(parent)
+        my_json_filter(json_output_handler& handler)
+           : json_filter(handler)
         {
         }
 
-        virtual void name(const std::string& name, const parsing_context& context)
+    private:
+        virtual void do_name(const char* p, int length, 
+                             const parsing_context& context)
         {
-            name_ = name;
-            if (name != "name")
+            property_name_ = string(p,length);
+            if (property_name_ != "name")
             {
-                parent().name(name,context);
+                input_handler().name(p, length, context);
             }
         }
 
-        virtual void string_value(const std::string& value, const parsing_context& context)
+        virtual void do_string_value(const char* p, int length, 
+                                     const parsing_context& context)
         {
-            if (name_ == "name")
+            if (property_name_ == "name")
             {
+                string value(p,length);
                 size_t end_first = value.find_first_of(" \t");
-                size_t start_last = value.find_first_not_of(" \t",end_first);
-                parent().name("first-name",context);
-                std::string first = value.substr(0,end_first);
-                parent().value(first,context);
+                size_t start_last = value.find_first_not_of(" \t", end_first);
+                input_handler().name("first-name", context);
+                std::string first = value.substr(0, end_first);
+                input_handler().value(first, context); 
                 if (start_last != std::string::npos)
                 {
-                    parent().name("last-name",context);
+                    input_handler().name("last-name", context);
                     std::string last = value.substr(start_last);
-                    parent().value(last,context);
+                    input_handler().value(last, context); 
                 }
                 else
                 {
                     std::cerr << "Incomplete name \"" << value
-                              << "\" at line " << context.line_number()
-                              << " and column " << context.column_number() << std::endl;
+                       << "\" at line " << context.line_number()
+                       << " and column " << context.column_number() << std::endl;
                 }
             }
             else
             {
-                parent().value(value,context);
+                input_handler().value(p, length, context);
             }
         }
-    private:
-        std::string name_;
+
+        std::string property_name_;
     };
 
 In your code you will pass `my_json_filter` to the constructor of [json_reader](json_reader), and call read

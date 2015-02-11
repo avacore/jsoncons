@@ -1,4 +1,4 @@
-If you want to use the json methods `is<T>`, `as<T>`, `add`, `set` and `operator=` to access or modify with a new type, you need to show json how to interact with that type, by extending `value_adapter` in the `jsoncons` namespace.
+If you want to use the json methods `is<T>`, `as<T>`, `add`, `set` and `operator=` to access or modify with a new type, you need to show json how to interact with that type, by extending `json_type_traits` in the `jsoncons` namespace.
 
 For example, by including the header file `jsoncons_ext/boost/type_extensions.hpp`, you can access and modify `json` values with `boost::gregorian` dates.
 
@@ -53,16 +53,16 @@ The output is
     }
 
 You can look in the header file `jsoncons_ext/boost/type_extensions.hpp`
-to see how the specialization of `value_adapter` that supports
+to see how the specialization of `json_type_traits` that supports
 the conversions works. In this implementation the `boost` date values are stored in the `json` values as strings.
 
     namespace jsoncons
     {
-        template <typename Storage>
-        class value_adapter<char,Storage,boost::gregorian::date>
+        template <typename Alloc>
+        class json_type_traits<char,Alloc,boost::gregorian::date>
         {
         public:
-            bool is(const basic_json<char,Storage>& val) const
+            bool is(const basic_json<char,Alloc>& val) const
             {
                 if (!val.is<std::string>())
                 {
@@ -79,12 +79,12 @@ the conversions works. In this implementation the `boost` date values are stored
                     return false;
                 }
             }
-            boost::gregorian::date as(const basic_json<char,Storage>& val) const
+            boost::gregorian::date as(const basic_json<char,Alloc>& val) const
             {
                 std::string s = val.as<std::string>();
                 return boost::gregorian::from_simple_string(s);
             }
-            void assign(basic_json<char,Storage>& self, boost::gregorian::date val)
+            void assign(basic_json<char,Alloc>& self, boost::gregorian::date val)
             {
                 std::string s(to_iso_extended_string(val));
                 self = s;

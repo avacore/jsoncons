@@ -22,7 +22,7 @@ namespace jsoncons {
 
 // null_type
 
-class null_type
+struct null_type
 {
 };
 
@@ -79,9 +79,14 @@ private:
     char message_[255];
 };
 
+#define JSONCONS_STR2(x)  #x
+#define JSONCONS_STR(x)  JSONCONS_STR2(x)
+
 #define JSONCONS_THROW_EXCEPTION(x) throw jsoncons::json_exception_0((x))
 #define JSONCONS_THROW_EXCEPTION_1(fmt,arg1) throw jsoncons::json_exception_1<Char>((fmt),(arg1))
-#define JSONCONS_ASSERT(x) if (!(x)) {std::cerr << #x; abort();}
+#define JSONCONS_ASSERT(x) if (!(x)) { \
+	throw jsoncons::json_exception_0("assertion '" #x "' failed at " __FILE__ ":" \
+			JSONCONS_STR(__LINE__)); }
 
 // json_char_traits
 
@@ -112,7 +117,7 @@ struct json_char_traits<char,1>
 
     static const std::string true_literal() {return "true";};
 
-    static uint32_t convert_char_to_codepoint(std::string::const_iterator& it, std::string::const_iterator)
+    static uint32_t convert_char_to_codepoint(const char*& it, const char*)
     {
         char c = *it;
         uint32_t u(c >= 0 ? c : 256 + c );
@@ -215,7 +220,7 @@ struct json_char_traits<wchar_t,2> // assume utf16
         }
     }
 
-    static uint32_t convert_char_to_codepoint(std::wstring::const_iterator& it, std::wstring::const_iterator)
+    static uint32_t convert_char_to_codepoint(const wchar_t*& it, const wchar_t*)
     {
         uint32_t cp = (0xffff & *it);
         if ((cp >= min_lead_surrogate && cp <= max_lead_surrogate)) // surrogate pair
@@ -258,7 +263,7 @@ struct json_char_traits<wchar_t,4> // assume utf32
         }
     }
 
-    static uint32_t convert_char_to_codepoint(std::wstring::const_iterator& it, std::wstring::const_iterator)
+    static uint32_t convert_char_to_codepoint(const wchar_t*& it, const wchar_t*)
     {
         uint32_t cp = static_cast<uint32_t>(*it);
         return cp;
