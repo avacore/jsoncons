@@ -175,6 +175,18 @@ private:
         }
     }
 
+    virtual void do_binary_value(const Char* p, size_t length, const basic_parsing_context<Char>&)
+    {
+        if (stack_.back().is_object())
+        {
+            stack_.back().object_->push_back(std::move(stack_.back().name_),basic_json<Char,Alloc>::make_binary(p,length));
+        } 
+        else 
+        {
+            stack_.back().array_->push_back(basic_json<Char,Alloc>::make_binary(p,length));
+        }
+    }
+
     virtual void do_longlong_value(long long value, const basic_parsing_context<Char>&)
     {
         if (stack_.back().is_object())

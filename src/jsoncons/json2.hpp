@@ -92,6 +92,7 @@ basic_json<Char, Alloc>::basic_json(const basic_json<Char, Alloc>& val)
         value_ = val.value_;
         break;
     case value_type::string_t:
+    case value_type::binary_t:
         value_.string_value_ = create_string_env(val.value_.string_value_);
         break;
     case value_type::array_t:
@@ -234,6 +235,7 @@ basic_json<Char, Alloc>::basic_json(value_type::value_type_t t)
     case value_type::bool_t:
         break;
     case value_type::string_t:
+    case value_type::binary_t:
         value_.string_value_ = create_string_env();
         break;
     case value_type::array_t:
@@ -261,6 +263,7 @@ basic_json<Char, Alloc>::~basic_json()
     case value_type::bool_t:
         break;
     case value_type::string_t:
+    case value_type::binary_t:
         //delete value_.string_wrapper_;
         delete_string_env(value_.string_value_);
         break;
@@ -539,6 +542,7 @@ bool basic_json<Char, Alloc>::operator==(const basic_json<Char, Alloc>& rhs) con
     case value_type::empty_object_t:
         return true;
     case value_type::string_t:
+    case value_type::binary_t:
         return value_.string_value_->length == rhs.value_.string_value_->length ? std::char_traits<Char>::compare(value_.string_value_->p,rhs.value_.string_value_->p,value_.string_value_->length) == 0 : false;
     case value_type::array_t:
         return *(value_.array_) == *(rhs.value_.array_);
@@ -920,6 +924,9 @@ void basic_json<Char, Alloc>::to_stream(basic_json_output_handler<Char>& handler
     case value_type::string_t:
         handler.value(value_.string_value_->p,value_.string_value_->length);
         break;
+    case value_type::binary_t:
+        handler.binary(value_.string_value_->p,value_.string_value_->length);
+        break;
     case value_type::double_t:
         handler.value(value_.float_value_);
         break;
@@ -1277,6 +1284,7 @@ bool basic_json<Char, Alloc>::is_empty() const
     switch (type_)
     {
     case value_type::string_t:
+    case value_type::binary_t:
         return value_.string_value_->length == 0;
     case value_type::array_t:
         return value_.array_->size() == 0;
@@ -1795,6 +1803,46 @@ inline void escape_string< char >(const char* s,
         os << str;
     } else {
         escape_string_orig<char>( s, length, format, os );
+    }
+}
+
+template<typename Char>
+void base64_string(const Char* s,
+                   size_t length,
+                   const basic_output_format<Char>& format,
+                   std::basic_ostream<Char>& os)
+{
+    size_t main_length = length / 3 * 3;
+    Char lookup[] = {
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+      'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+      'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+      'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+      'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+      'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+      'w', 'x', 'y', 'z', '0', '1', '2', '3',
+      '4', '5', '6', '7', '8', '9', '+', '/'
+    };
+    
+    for( size_t i = 0; i < main_length; i += 3 ) {
+      os << lookup[(s[i] & 0xfc) >> 2];
+      os << lookup[((s[i] & 0x03) << 4) | ((s[i+1] & 0xf0) >> 4)];
+      os << lookup[((s[i+1] & 0x0f) << 2) | ((s[i+2] & 0xc0) >> 6)];
+      os << lookup[s[i+2] & 0x3f];
+    }
+    
+    if( length - main_length == 1 ) {
+      os << lookup[(s[main_length] & 0xfc) >> 2];
+      os << lookup[(s[main_length] & 0x03) << 4];
+      os << '=';
+      os << '=';
+    }
+    
+    if( length - main_length == 2 ) {
+      os << lookup[(s[main_length] & 0xfc) >> 2];
+      os << lookup[((s[main_length] & 0x03) << 4) | ((s[main_length+1] & 0xf0) >> 4)];
+      os << lookup[(s[main_length+1] & 0x0f) << 2];
+      os << '=';
     }
 }
 

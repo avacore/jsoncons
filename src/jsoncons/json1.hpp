@@ -102,6 +102,9 @@ template <typename Char>
 std::basic_string<Char> escape_string(const std::basic_string<Char>& s, const basic_output_format<Char>& format);
 
 template <typename Char>
+std::basic_string<Char> base64_string(const std::basic_string<Char>& s, const basic_output_format<Char>& format);
+
+template <typename Char>
 class basic_parse_error_handler;
 
 template <typename Char, typename Alloc, typename T>
@@ -124,6 +127,7 @@ namespace value_type
         object_t,
         array_t,
         string_t,
+        binary_t,
         double_t,
         longlong_t,
         ulonglong_t,
@@ -1058,6 +1062,13 @@ public:
     {
         basic_json<Char,Alloc> temp(value_type::ulonglong_t);
         temp.value_.ui_value_ = val;
+        return temp;
+    }
+
+    static basic_json<Char,Alloc> make_binary(const Char *p, size_t length)
+    {
+        basic_json<Char,Alloc> temp(value_type::binary_t);
+        temp.value_.string_value_ = create_string_env(p,length);
         return temp;
     }
 

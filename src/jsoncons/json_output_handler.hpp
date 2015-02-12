@@ -75,6 +75,11 @@ public:
         do_string_value(p, std::char_traits<Char>::length(p));
     }
 
+    void binary(const Char* p, size_t length) 
+    {
+        do_binary_value(p, length);
+    }
+
     void value(int value) 
     {
         do_longlong_value(value);
@@ -139,6 +144,8 @@ private:
     virtual void do_null_value() = 0;
 
     virtual void do_string_value(const Char* value, size_t length) = 0;
+
+    virtual void do_binary_value(const Char* value, size_t length) = 0;
 
     virtual void do_double_value(double value) = 0;
 

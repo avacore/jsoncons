@@ -77,6 +77,11 @@ public:
         do_string_value(p, std::char_traits<Char>::length(p), context);
     }
 
+    void value(const std::vector<Char>& value, const basic_parsing_context<Char>& context) 
+    {
+        do_binary_value(value.data(), value.size(), context);
+    }
+
     void value(int value, const basic_parsing_context<Char>& context) 
     {
         do_longlong_value(value,context);
@@ -145,6 +150,8 @@ private:
     virtual void do_null_value(const basic_parsing_context<Char>& context) = 0;
 
     virtual void do_string_value(const Char* value, size_t length, const basic_parsing_context<Char>& context) = 0;
+
+    virtual void do_binary_value(const Char* value, size_t length, const basic_parsing_context<Char>& context) = 0;
 
     virtual void do_double_value(double value, const basic_parsing_context<Char>& context) = 0;
 

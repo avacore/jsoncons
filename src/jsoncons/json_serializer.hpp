@@ -156,6 +156,17 @@ private:
         end_value();
     }
 
+    virtual void do_binary_value(const Char* value, size_t length)
+    {
+        begin_value();
+
+        os_->put('\"');
+        base64_string<Char>(value, length, format_, *os_);
+        os_->put('\"');
+
+        end_value();
+    }
+
     virtual void do_double_value(double value)
     {
         begin_value();
